@@ -1,0 +1,27 @@
+# Android / Gradle
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+.cxx/
+.externalNativeBuild/
+
+# Generated delivery packages
+dist/
+
+# Signing and secrets
+*.jks
+*.keystore
+key.properties
+.env
+backend/.env
+
+# Python
+backend/.venv/
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store
