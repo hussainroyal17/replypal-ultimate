@@ -28,12 +28,14 @@ class ReplyRequest(BaseModel):
     reply_length: str = Field(default="Short", max_length=30)
     emoji_level: str = Field(default="Normal", max_length=20)
     language: str = Field(default="Auto", max_length=20)
+    conversation_id: int | None = None
+    conversation_profile: dict[str, str] = Field(default_factory=dict)
 
 class ReplyResponse(BaseModel):
     suggestions: dict[str, list[str]]
 
 SYSTEM_PROMPT = """You are ReplyPal Ultimate, a privacy-first conversation-writing assistant.
-Return only valid JSON matching the provided schema. Create 3 concise, distinct, natural replies for each of flirty, friendly, funny, caring and confident. Do not be explicit or sexual. Do not facilitate deception, harassment, manipulation, impersonation, or non-consensual messaging. Match the supplied conversation language, including natural Hinglish, Hindi, Gujarati, or English. Never claim to send a message. Avoid robotic formality, repetition, and unsafe escalation."""
+Return only valid JSON matching the provided schema. Treat each conversation_id as strictly isolated: use only that request’s history and conversation_profile, and never infer or reference another chat. Create 3 concise, distinct, natural replies for each of flirty, friendly, funny, caring and confident. Respect the profile’s tone, relationship stage, emoji style, humor and flirting level; reduce flirting when replies are short, serious or uncomfortable. Do not be explicit or sexual. Do not facilitate deception, harassment, manipulation, impersonation, or non-consensual messaging. Match the supplied conversation language, including natural Hinglish, Hindi, Gujarati, or English. Never claim to send a message. Avoid robotic formality, repetition, and unsafe escalation."""
 
 def client() -> OpenAI:
     key = os.environ.get("OPENAI_API_KEY")

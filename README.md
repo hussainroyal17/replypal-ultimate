@@ -135,3 +135,12 @@ The project was compiled successfully with `./gradlew assembleDebug` using Andro
 [2] [Google for Developers — Recognize text in images with ML Kit on Android](https://developers.google.com/ml-kit/vision/text-recognition/v2/android)
 
 [3] [Google Play Console Help — Use of the AccessibilityService API](https://support.google.com/googleplay/android-developer/answer/10964491)
+
+
+## Conversation-aware update
+
+ReplyPal now treats every saved conversation as an independent context boundary. Each Room `ConversationEntity` owns a unique numeric conversation ID, a short rolling context summary, inferred tone, flirting and humor levels, language/emoji indicators, important facts, and relationship stage. When a message is added, the app refreshes **only that conversation’s** profile; generating replies sends only the selected conversation ID, profile, recent messages, and latest incoming message to the configured backend. The backend prompt explicitly prohibits carrying context between conversations.
+
+The chat interface now makes this model visible with an **“AI understands this conversation”** profile card, a compact context memory preview, explicit **“+ Add conversation message”** sender selection for the contact or the user, the primary **“What should I say next?”** action, and a **“Why this reply?”** explanation for each generated suggestion. The home list exposes each chat’s independent tone/flirting profile rather than presenting a generic reply generator.
+
+The updated local fallback recognizes common check-in messages such as “how’s you” and produces distinct five-style replies shaped by the selected chat’s profile. For production-quality inference across more languages and longer histories, configure the included secure backend; it now receives `conversation_id` and `conversation_profile` and is instructed to use no other chat’s history.

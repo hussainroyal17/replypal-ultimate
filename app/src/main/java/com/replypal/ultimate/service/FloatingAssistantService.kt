@@ -27,6 +27,7 @@ import com.replypal.ultimate.MainActivity
 import com.replypal.ultimate.R
 import com.replypal.ultimate.data.SettingsManager
 import com.replypal.ultimate.data.UserPreferences
+import com.replypal.ultimate.domain.ConversationProfile
 import com.replypal.ultimate.domain.GenerationRequest
 import com.replypal.ultimate.domain.LocalReplyProvider
 import kotlinx.coroutines.MainScope
@@ -150,7 +151,7 @@ class FloatingAssistantService : Service() {
             response.text = "Thinking…"
             scope.launch {
                 val pref = settingsManager.preferences.first()
-                val result = LocalReplyProvider().generate(GenerationRequest("Quick reply", emptyList(), message, pref))
+                val result = LocalReplyProvider().generate(GenerationRequest(0L, "Quick reply", emptyList(), message, ConversationProfile("Quick reply only; choose a saved chat in the main app for long-term memory.", "", pref.language, "Auto", "Low", "Auto", pref.emojiLevel, "Getting to know each other"), pref))
                 val reply = result.suggestions.values.firstOrNull()?.firstOrNull().orEmpty()
                 response.text = "$reply\n\nTap here to copy"
                 response.setOnClickListener { copy(reply); response.text = "Copied — paste it in your chat." }

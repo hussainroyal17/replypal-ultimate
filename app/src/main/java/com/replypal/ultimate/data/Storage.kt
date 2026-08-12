@@ -18,6 +18,15 @@ data class ConversationEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val note: String = "",
+    /** Per-chat profile and memory. Never shared with another conversation ID. */
+    val contextSummary: String = "",
+    val importantFacts: String = "",
+    val preferredLanguage: String = "Auto",
+    val inferredTone: String = "Auto",
+    val flirtingLevel: String = "Auto",
+    val humorLevel: String = "Auto",
+    val emojiStyle: String = "Auto",
+    val conversationStage: String = "Getting to know each other",
     val isPinned: Boolean = false,
     val isArchived: Boolean = false,
     val lastUpdated: Long = System.currentTimeMillis()
@@ -40,6 +49,7 @@ data class SuggestionEntity(
     val conversationId: Long,
     val message: String,
     val style: ReplyStyle,
+    val rationale: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val wasCopied: Boolean = false,
     val wasSaved: Boolean = false
@@ -102,7 +112,7 @@ interface SuggestionDao {
     suspend fun clearForConversation(conversationId: Long)
 }
 
-@Database(entities = [ConversationEntity::class, MessageEntity::class, SuggestionEntity::class], version = 1, exportSchema = true)
+@Database(entities = [ConversationEntity::class, MessageEntity::class, SuggestionEntity::class], version = 2, exportSchema = false)
 @androidx.room.TypeConverters(AppConverters::class)
 abstract class ReplyPalDatabase : RoomDatabase() {
     abstract fun conversations(): ConversationDao

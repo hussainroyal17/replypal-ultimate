@@ -178,7 +178,7 @@ private fun ConversationRow(conversation: ConversationEntity, onClick: () -> Uni
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(46.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Purple, Color(0xFF4DC3EB)))), contentAlignment = Alignment.Center) { Text(conversation.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) { Text(conversation.name, fontWeight = FontWeight.SemiBold); Text(if (conversation.note.isBlank()) "Ready for your next message" else conversation.note, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Column(Modifier.weight(1f)) { Text(conversation.name, fontWeight = FontWeight.SemiBold); Text("${conversation.inferredTone} • ${conversation.flirtingLevel} flirty • ${if (conversation.contextSummary.isBlank()) "Add messages to build context" else conversation.contextSummary.take(70)}", maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete conversation", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
@@ -194,11 +194,14 @@ private fun ChatScreen(modifier: Modifier, repository: ConversationRepository, s
     var composeText by remember { mutableStateOf("") }
     var extractedText by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
+    var showAddMessage by remember { mutableStateOf(false) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) scope.launch { readScreenshot(context, uri, prefs, onDone = { extractedText = it }, onError = { status = it }) } }
     LaunchedEffect(initialImage) { if (initialImage != null) { readScreenshot(context, initialImage, prefs, onDone = { extractedText = it }, onError = { status = it }); onImageConsumed() } }
     Scaffold(modifier = modifier, topBar = { CenterAlignedTopAppBar(title = { Text(conversation?.name ?: "Chat") }, colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)) }) { contentPadding ->
         if (conversation == null) Box(Modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center) { Text("Create or select a conversation to get started.") } else {
             Column(Modifier.fillMaxSize().padding(contentPadding).padding(horizontal = 16.dp)) {
+                ProfileContextCard(conversation!!)
+                Text("Add the conversation → Tap Suggest → Choose a reply → Copy → Paste", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(messages, key = { it.id }) { message -> MessageBubble(message.body, message.direction == MessageDirection.OUTGOING) }
                     if (extractedText != null) item { OcrReview(extractedText!!, onChange = { extractedText = it }, onUse = { composeText = extractedText!!; extractedText = null }) }
@@ -209,12 +212,31 @@ private fun ChatScreen(modifier: Modifier, repository: ConversationRepository, s
                     Column { IconButton(onClick = { imagePicker.launch("image/*") }) { Icon(Icons.Default.Image, "Analyze screenshot") }; IconButton(onClick = { val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip; if (clip != null && clip.itemCount > 0) composeText = clip.getItemAt(0).coerceToText(context).toString() }) { Icon(Icons.Default.ContentCopy, "Paste from clipboard") } }
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { scope.launch { repository.addIncoming(conversationId, composeText); composeText = "" } }, modifier = Modifier.weight(1f)) { Text("Add message") }
-                    Button(onClick = { scope.launch { status = "Generating natural reply options…"; runCatching { repository.generate(conversation!!, prefs) }.onSuccess { status = "Suggestions ready below." }.onFailure { status = it.message ?: "Couldn’t generate replies." } } }, modifier = Modifier.weight(1f), enabled = messages.any { it.direction == MessageDirection.INCOMING }) { Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(6.dp)); Text("Suggest") }
+                    OutlinedButton(onClick = { showAddMessage = true }, modifier = Modifier.weight(1f)) { Text("+ Add conversation message") }
+                    Button(onClick = { scope.launch { status = "Using ${conversation!!.name}’s conversation context…"; runCatching { repository.generate(conversation!!, prefs) }.onSuccess { status = "Five context-aware suggestions are ready." }.onFailure { status = it.message ?: "Couldn’t generate replies." } } }, modifier = Modifier.weight(1f), enabled = messages.any { it.direction == MessageDirection.INCOMING }) { Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(6.dp)); Text("What should I say next?") }
                 }
             }
         }
     }
+    if (showAddMessage && conversation != null) AddConversationMessageDialog(conversation!!.name, composeText, onDismiss = { showAddMessage = false }, onAdd = { body, incoming -> scope.launch { if (incoming) repository.addIncoming(conversationId, body) else repository.addOutgoing(conversationId, body); composeText = ""; showAddMessage = false } })
+}
+
+@Composable
+private fun ProfileContextCard(conversation: ConversationEntity) {
+    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF0EDFF)), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            Text("✨ AI understands this conversation", fontWeight = FontWeight.Bold)
+            Text("Tone: ${conversation.inferredTone} • Flirting: ${conversation.flirtingLevel} • Humor: ${conversation.humorLevel}", style = MaterialTheme.typography.bodySmall)
+            if (conversation.contextSummary.isNotBlank()) Text("Memory: ${conversation.contextSummary.take(180)}", maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun AddConversationMessageDialog(name: String, initial: String, onDismiss: () -> Unit, onAdd: (String, Boolean) -> Unit) {
+    var value by remember { mutableStateOf(initial) }
+    var incoming by remember { mutableStateOf(true) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Add conversation message") }, text = { Column { Text("Who sent this message?"); Row { AssistChip(onClick = { incoming = true }, label = { Text("$name") }, leadingIcon = if (incoming) ({ Icon(Icons.Default.AutoAwesome, null) }) else null); Spacer(Modifier.width(8.dp)); AssistChip(onClick = { incoming = false }, label = { Text("Me") }, leadingIcon = if (!incoming) ({ Icon(Icons.Default.AutoAwesome, null) }) else null) }; OutlinedTextField(value = value, onValueChange = { value = it }, label = { Text("Message") }, modifier = Modifier.fillMaxWidth()) } }, confirmButton = { Button(onClick = { onAdd(value, incoming) }, enabled = value.isNotBlank()) { Text("Add message") } }, dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
 private suspend fun readScreenshot(context: Context, uri: Uri, prefs: com.replypal.ultimate.data.UserPreferences, onDone: (String) -> Unit, onError: (String) -> Unit) {
@@ -242,13 +264,14 @@ private fun SuggestionsScreen(modifier: Modifier, repository: ConversationReposi
     var styleIndex by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var whyId by remember { mutableLongStateOf(0L) }
     val styles = ReplyStyle.entries
     Scaffold(modifier = modifier, topBar = { CenterAlignedTopAppBar(title = { Text(title) }) }) { contentPadding ->
         Column(Modifier.fillMaxSize().padding(contentPadding)) {
             TabRow(selectedTabIndex = styleIndex) { styles.forEachIndexed { index, style -> Tab(selected = styleIndex == index, onClick = { styleIndex = index }, text = { Text("${style.emoji} ${style.label}") }) } }
             val visible = suggestions.filter { it.style == styles[styleIndex] }
             if (visible.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Generate a reply from Chat to see ${styles[styleIndex].label.lowercase()} options.", modifier = Modifier.padding(28.dp)) } else LazyColumn(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(visible, key = { it.id }) { suggestion -> Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(suggestion.message, style = MaterialTheme.typography.bodyLarge); Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { AssistChip(onClick = { copyToClipboard(context, suggestion.message); scope.launch { repository.markCopied(suggestion.id) }; Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show() }, label = { Text("Copy") }, leadingIcon = { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp)) }) } } } }
+                items(visible, key = { it.id }) { suggestion -> Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(suggestion.message, style = MaterialTheme.typography.bodyLarge); if (whyId == suggestion.id) Text(suggestion.rationale, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)); Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { AssistChip(onClick = { whyId = if (whyId == suggestion.id) 0L else suggestion.id }, label = { Text("Why this reply?") }); Spacer(Modifier.width(6.dp)); AssistChip(onClick = { copyToClipboard(context, suggestion.message); scope.launch { repository.markCopied(suggestion.id) }; Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show() }, label = { Text("Copy") }, leadingIcon = { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp)) }) } } } }
             }
         }
     }
